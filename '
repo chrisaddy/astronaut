@@ -1,0 +1,78 @@
+(ns astronaut.core
+  (:require [cli-matic.core :refer [run-cmd]])
+  (:require [clojure.java.jdbc :refer :all])
+  (:require [clojure.pprint :as p])
+  (:require [clojure.java.jdbc :as j])
+  (:gen-class))
+
+
+
+(def db
+  {:classname   "org.sqlite.JDBC"
+   :subprotocol "sqlite"
+   :subname     "cards.db"})
+
+(defn qry
+  "Return the result of a query from a string when the result is expected to be a single value"
+  [q]
+  (first (j/query db q)))
+
+(defn count-cards
+  "Return the current number of cards in the database"
+  []
+  (:count (qry "select count(*) as count from cards;")))
+
+(defn next-id
+  "Create a new integer id by incrementing the largest id"
+  []
+  (or ( :max (qry "select max(id) as max from cards;"))) 0)
+
+(defn add-card
+  [{:keys [front back]}]
+  (def id (next-id))
+  (def card-type "basic")
+  (println (str card-type " card " id " added to ship."))
+  (def query-string (str "insert into cards (id, front, back, type) values("
+                         id
+                         ", '"
+                         front
+                         "', '"
+                         back
+                         "', '"
+                         card-type
+                         "');"))
+  (println query-string)
+  (def x "insert into cards (id, front, back, type) values(0, 'hello', 'world', 'basic');"
+
+
+  (j/query db query-string))
+
+(defn list-cards
+  [& args]
+  (p/print-table (j/query db (str "select * from cards;"))))
+
+(def CONFIGURATION
+  {:app         {:command     "astronaut"
+                 :description "Command-line spaced-repition"
+                 :version     "0.0.1"}
+
+   ; :global-opts [{:option  "base"
+   ;                :as      "The number base for output"
+   ;                :type    :int
+   ;                :default 10}]
+
+   :commands    [{:command     "add-card" :short "a"
+                  :description "Adds a card to the backlog"
+                  :opts        [{:option "front" :short "f" :as "Front of the card" :type :string :default ""}
+                                {:option "back" :short "b" :as "Back of the card" :type :string :default ""}]
+                  :runs        add-card}
+
+                 {:command     "list" :short "l"
+                  :description "List all cards"
+                  :runs        list-cards}
+                 ]})
+
+(defn -main
+  "I don't do a whole lot ... yet."
+  [& args]
+  (run-cmd args CONFIGURATION))
