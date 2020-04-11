@@ -1,44 +1,37 @@
 # astronaut
 
-FIXME: description
+Spaced Repitition is a learning method by which you review information just as soon as you would forget it.
 
 ## Installation
 
-Download from http://example.com/FIXME.
+Make sure you have `lein` into your `PATH` then
+
+```sh
+make install
+```
+
+will create an execuatable in `$HOME/bin/`
 
 ## Usage
 
-FIXME: explanation
+$```sh
+$$$$ astronaut --help
+NAME:
+ astronaut - Command-line spaced-repition
 
-    $ java -jar astronaut-0.1.0-standalone.jar [args]
+USAGE:
+ astronaut [global-options] command [command options] [arguments...]
 
-## Options
+VERSION:
+ 0.0.1
 
-FIXME: listing of options this app accepts.
+COMMANDS:
+   init                 Initialize astronaut cli
+   add-card, a          Adds a card to the backlog
+   inspect              Review scheduled cards
+   list                 List all cards
 
-## Examples
-
-...
-
-### Bugs
-
-...
-
-### Any Other Sections
-### That You Think
-### Might be Useful
-
-## License
-
-Copyright © 2020 FIXME
-
-This program and the accompanying materials are made available under the
-terms of the Eclipse Public License 2.0 which is available at
-http://www.eclipse.org/legal/epl-2.0.
-
-This Source Code may also be made available under the following Secondary
-Licenses when the conditions for such availability set forth in the Eclipse
-Public License, v. 2.0 are satisfied: GNU General Public License as published by
-the Free Software Foundation, either version 2 of the License, or (at your
-option) any later version, with the GNU Classpath Exception which is available
-at https://www.gnu.org/software/classpath/license.html.
+GLOBAL OPTIONS:
+   --t, ----tags S    Card context
+   -?, --help
+```

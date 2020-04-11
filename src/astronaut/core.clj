@@ -57,6 +57,10 @@
   [{card_id :card_id attempt :attempt}]
   (Integer/parseInt (str card_id attempt)))
 
+(defn schedule
+  [& args]
+  )
+
 (defn review-card
   [{front :front, back :back, attempt :attempt card_id :card_id}]
   (println (str "\u001b[32;1m" front "\u001b[0m\n"))
@@ -65,7 +69,7 @@
   (println (str "\u001b[34;1m" back "\u001b[0m")
   (println "How easy was that?")
   (def confidence (read-line)))
-  (schedule {:attempt attempt :card_id card_id :confidence confidence})
+  ; (schedule {:attempt attempt :card_id card_id :confidence confidence})
   (println ""))
 
 (defn review
