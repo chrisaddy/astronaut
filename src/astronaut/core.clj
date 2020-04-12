@@ -6,27 +6,29 @@
   (:require [clj-time.core :as t])
   (:require [clj-time.coerce :as c])
   (:require [clojure.java.io :as io])
+  (:require [clojure.string :as str])
+  (:require [clojure.math.numeric-tower :as math])
   (:gen-class))
 
 (def home-directory (System/getProperty "user.home"))
 (def astro-directory (str home-directory "/.astronaut/"))
 (def cards-db-location (str astro-directory "cards.db"))
 (def INITIALIZE-DB (str "create table cards"
-                        "(id INTEGER PRIMARY KEY,"
+                        "(id TEXT PRIMARY KEY,"
                         "card_id INTEGER,"
                         "front TEXT,"
                         "back TEXT,"
-                        "type TEXT,"
-                        "tags TEXT,"
                         "attempt INTEGER,"
                         "confidence INTEGER,"
                         "review INTEGER,"
                         "next_attempt INTEGER,"
                         "next_review INTEGER);"))
 
-(defn current-time
-  []
-  (c/to-long (t/now)))
+(defn review-query
+  [ts]
+  (str "select * from (select distinct * from (select * from cards order by next_review desc) group by card_id) where next_review <= " ts ";"))
+
+(defn current-time [] (c/to-long (t/now)))
 
 (def db
   {:classname   "org.sqlite.JDBC"
@@ -38,6 +40,12 @@
   [q]
   (first (j/query db q)))
 
+
+(defn newest
+  []
+  (p/print-table (j/query db REVIEWQUERY)))
+
+
 (defn count-cards
   "Return the current number of cards in the database"
   []
@@ -46,36 +54,76 @@
 (defn largest-card-id
   "Find the largest card id, if none exists, return 0"
   []
-  (:max (qry "select max(card_id) as max from cards;")))
+  (def lgid (:max (qry "select max(card_id) as max from cards;")))
+  (if (nil? lgid)
+    0
+    lgid))
 
 (defn new-card-id
   "Create a new integer card id by incrementing the largest id"
   []
   (+ 1 (largest-card-id)))
 
-(defn new-id
-  [{card_id :card_id attempt :attempt}]
-  (Integer/parseInt (str card_id attempt)))
+(defn create-id
+  []
+  (first (str/split (str (java.util.UUID/randomUUID)) #"-")))
+
+(defn insert-card-query-string
+  [{id :id
+    attempt :attempt
+    card_id :card_id
+    front :front
+    back :back
+    review :review
+    next-review :next-review
+    confidence :confidence}]
+  (str "insert into cards"
+       "(id,card_id,front,back,attempt,review,confidence,next_attempt,next_review) "
+       "values('"
+        (create-id) "',"
+        card_id ",'"
+        front "','"
+        back "',"
+        attempt ","
+        review ","
+        confidence ","
+        (+ 1 attempt) ","
+        next-review ");"))
 
 (defn schedule
-  [& args]
-  )
+  [{id :id attempt :attempt card_id :card_id confidence :confidence ts :ts}]
+  (def last-attempt (first (j/query db (str "select * from cards where id = '" id "';"))))
+  (def last-attempt-confidence (:confidence last-attempt))
+  (def front (:front last-attempt))
+  (def back (:back last-attempt))
+  (defn next-review
+    [att conf, t]
+    (+ 86400000 (* (math/expt (int att ) (Math/log conf))) t))
+  (println last-attempt)
+
+  (def query-string (insert-card-query-string {:attempt (+ 1 attempt)
+                             :card_id card_id
+                             :confidence confidence
+                             :review ts
+                             :front front
+                             :back back
+                             :next-review (next-review attempt confidence ts)
+                             }))
+  (j/execute! db query-string))
 
 (defn review-card
-  [{front :front, back :back, attempt :attempt card_id :card_id}]
+  [{id :id front :front, back :back, attempt :attempt card_id :card_id}]
   (println (str "\u001b[32;1m" front "\u001b[0m\n"))
   (println "press any key when ready to flip card")
   (def pause (read-line))
-  (println (str "\u001b[34;1m" back "\u001b[0m")
-  (println "How easy was that?")
-  (def confidence (read-line)))
-  ; (schedule {:attempt attempt :card_id card_id :confidence confidence})
-  (println ""))
+  (println (str "\u001b[34;1m" back "\u001b[0m"))
+  (do (print "How easy was that [0-10]? ") (flush) (def confidence (read-line)))
+  (schedule {:id id :attempt attempt :card_id card_id :confidence (Integer/parseInt confidence) :ts (current-time)}))
 
 (defn review
   []
   (def ts (current-time))
-  (def cards (j/query db (str "select * from cards where next_review >" ts " order by next_review DESC limit 20;")))
+  (def cards (j/query db (review-query ts)))
   (let [len (count cards)]
     (if (= len 0)
       (println "Congrats you're all done for now!")
@@ -84,30 +132,27 @@
         (map review-card cards)))))
 
 (defn add-card
-  [{:keys [front back tags]}]
+  [{:keys [front back]}]
   (def card_id (new-card-id))
   (def attempt 0)
-  (def id (new-id {:card_id card_id :attempt attempt}))
-  (def card-type "basic")
+  (def id (create-id))
   (def confidence 0)
   (def review (current-time))
   (def query-string (str
                       "insert into cards "
-                      "(id,card_id,front,back,type,tags,attempt,review,confidence,next_attempt,next_review) "
-                      "values("
-                      id ",'"
-                      card_id "','"
+                      "(id,card_id,front,back,attempt,review,confidence,next_attempt,next_review) "
+                      "values('"
+                      id "',"
+                      card_id ",'"
                       front "','"
                       back "','"
-                      card-type "','"
-                      tags "','"
                       attempt "','"
                       review "','"
                       confidence "','"
                       (+ 1 attempt) "','"
                       review "');"))
   (j/execute! db query-string)
-  (println (str card-type " card " id " added to ship.")))
+  (println (str "card " id " added to ship.")))
 
 (defn list-cards
   []
@@ -126,27 +171,22 @@
   {:app         {:command     "astronaut"
                  :description "Command-line spaced-repition"
                  :version     "0.0.1"}
-
-   :global-opts [{:option  "--tags"
-                  :short   "-t"
-                  :as      "Card context"
-                  :type    :string
-                  :default ""}]
-
+   ; :global-opts [{:option  "tags"
+   ;                :short   "t"
+   ;                :as      "Card context"
+   ;                :type    :string
+   ;                :default ""}]
    :commands    [{:command     "init"
                   :description "Initialize astronaut cli"
                   :runs        init-table}
                  {:command     "add-card" :short "a"
                   :description "Adds a card to the backlog"
-                  :opts        [{:option "--front"
-                                 :short "-f"
-                                 :as "Front of the card"
-                                 :type :string :default ""}
-                                {:option "--back"
-                                 :short "-b"
-                                 :as "Back of the card"
-                                 :type :string
-                                 :default ""}]
+                  :opts        [{:option "front"
+                                 :short "f"
+                                 :as "Front of the card"}
+                                {:option "back"
+                                 :short "b"
+                                 :as "Back of the card"}]
                   :runs        add-card}
                  {:command     "inspect"
                   :description "Review scheduled cards"
